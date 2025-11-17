@@ -9,7 +9,7 @@ import sys
 import json
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence
 import httpx
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
@@ -151,7 +151,7 @@ async def handle_call_tool(
         )]
 
 
-async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> list[types.TextContent]:
+async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Call Tool #1: Extract manufacturer data"""
     logger.info(f"Extracting data for manufacturer: {manufacturer_id}, job: {job_id}")
 
@@ -183,7 +183,7 @@ async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> list[t
     )]
 
 
-async def finalize_order(guide_uri: str, job_id: str) -> list[types.TextContent]:
+async def finalize_order(guide_uri: str, job_id: str) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Call Tool #2: Finalize order and generate Excel"""
     logger.info(f"Finalizing order for job: {job_id}, guide: {guide_uri}")
 
@@ -214,7 +214,7 @@ async def finalize_order(guide_uri: str, job_id: str) -> list[types.TextContent]
     )]
 
 
-async def get_order_file(job_id: str, output_path: Optional[str] = None) -> list[types.TextContent]:
+async def get_order_file(job_id: str, output_path: Optional[str] = None) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Download the Excel order file"""
     if output_path is None:
         output_path = f"./output/{job_id}.xlsx"
@@ -250,7 +250,7 @@ async def get_order_file(job_id: str, output_path: Optional[str] = None) -> list
     )]
 
 
-async def get_guide_content(guide_uri: str) -> list[types.TextContent]:
+async def get_guide_content(guide_uri: str) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Fetch and return guide content"""
     logger.info(f"Fetching guide content from: {guide_uri}")
 
