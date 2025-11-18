@@ -145,9 +145,14 @@ async def handle_call_tool(
 
     except Exception as e:
         logger.error(f"Error executing tool {name}: {str(e)}", exc_info=True)
+        error_result = {
+            "status": "error",
+            "error": str(e),
+            "tool": name
+        }
         return [types.TextContent(
             type="text",
-            text=f"Error: {str(e)}"
+            text=json.dumps(error_result, indent=2)
         )]
 
 
@@ -155,16 +160,36 @@ async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> list[t
     """Call Tool #1: Extract manufacturer data"""
     logger.info(f"Extracting data for manufacturer: {manufacturer_id}, job: {job_id}")
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        response = await client.post(
-            f"{TOOL1_BASE_URL}/extract",
-            json={
-                "manufacturer_id": manufacturer_id,
-                "job_id": job_id
-            }
-        )
-        response.raise_for_status()
-        data = response.json()
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(
+                f"{TOOL1_BASE_URL}/extract",
+                json={
+                    "manufacturer_id": manufacturer_id,
+                    "job_id": job_id
+                }
+            )
+
+            # Check HTTP status
+            if response.status_code != 200:
+                error_text = response.text[:500] if response.text else "No response body"
+                raise httpx.HTTPStatusError(
+                    f"HTTP {response.status_code}: {error_text}",
+                    request=response.request,
+                    response=response
+                )
+
+            # Try to parse JSON response
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                logger.error(f"External API returned invalid JSON: {response.text[:500]}")
+                raise ValueError(f"External API returned invalid JSON: {e}")
+
+    except httpx.ConnectError as e:
+        raise ConnectionError(f"Failed to connect to {TOOL1_BASE_URL}: {e}")
+    except httpx.TimeoutException as e:
+        raise TimeoutError(f"Request to {TOOL1_BASE_URL} timed out: {e}")
 
     result = {
         "status": "success",
@@ -193,16 +218,34 @@ async def finalize_order(guide_uri: str, job_id: str) -> list[types.TextContent 
 
     logger.info(f"Finalizing order for job: {job_id}, guide: {full_guide_uri}")
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
-        response = await client.post(
-            f"{TOOL2_BASE_URL}/finalize",
-            json={
-                "guide_uri": full_guide_uri,
-                "job_id": job_id
-            }
-        )
-        response.raise_for_status()
-        data = response.json()
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(
+                f"{TOOL2_BASE_URL}/finalize",
+                json={
+                    "guide_uri": full_guide_uri,
+                    "job_id": job_id
+                }
+            )
+
+            if response.status_code != 200:
+                error_text = response.text[:500] if response.text else "No response body"
+                raise httpx.HTTPStatusError(
+                    f"HTTP {response.status_code}: {error_text}",
+                    request=response.request,
+                    response=response
+                )
+
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                logger.error(f"External API returned invalid JSON: {response.text[:500]}")
+                raise ValueError(f"External API returned invalid JSON: {e}")
+
+    except httpx.ConnectError as e:
+        raise ConnectionError(f"Failed to connect to {TOOL2_BASE_URL}: {e}")
+    except httpx.TimeoutException as e:
+        raise TimeoutError(f"Request to {TOOL2_BASE_URL} timed out: {e}")
 
     result = {
         "status": "success",
@@ -230,15 +273,28 @@ async def get_order_file(job_id: str, output_path: Optional[str] = None) -> list
 
     logger.info(f"Downloading order file for job: {job_id} to {output_path}")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.get(
-            f"{TOOL2_BASE_URL}/orders/{job_id}"
-        )
-        response.raise_for_status()
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(
+                f"{TOOL2_BASE_URL}/orders/{job_id}"
+            )
 
-        # Save the file
-        with open(output_path, 'wb') as f:
-            f.write(response.content)
+            if response.status_code != 200:
+                error_text = response.text[:500] if response.text else "No response body"
+                raise httpx.HTTPStatusError(
+                    f"HTTP {response.status_code}: {error_text}",
+                    request=response.request,
+                    response=response
+                )
+
+            # Save the file
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+
+    except httpx.ConnectError as e:
+        raise ConnectionError(f"Failed to connect to {TOOL2_BASE_URL}: {e}")
+    except httpx.TimeoutException as e:
+        raise TimeoutError(f"Request to {TOOL2_BASE_URL} timed out: {e}")
 
     result = {
         "status": "success",
@@ -266,10 +322,24 @@ async def get_guide_content(guide_uri: str) -> list[types.TextContent | types.Im
 
     logger.info(f"Fetching guide content from: {full_url}")
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.get(full_url)
-        response.raise_for_status()
-        content = response.text
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(full_url)
+
+            if response.status_code != 200:
+                error_text = response.text[:500] if response.text else "No response body"
+                raise httpx.HTTPStatusError(
+                    f"HTTP {response.status_code}: {error_text}",
+                    request=response.request,
+                    response=response
+                )
+
+            content = response.text
+
+    except httpx.ConnectError as e:
+        raise ConnectionError(f"Failed to connect to {full_url}: {e}")
+    except httpx.TimeoutException as e:
+        raise TimeoutError(f"Request to {full_url} timed out: {e}")
 
     result = {
         "status": "success",
