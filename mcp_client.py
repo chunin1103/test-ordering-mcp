@@ -118,8 +118,36 @@ class MCPOrderingClient:
             if hasattr(content, 'text'):
                 response_text += content.text
 
-        logger.info(f"Tool response received")
+        # Log response for debugging
+        if not response_text:
+            logger.warning(f"Tool {tool_name} returned empty response")
+            logger.debug(f"Raw result content: {result.content}")
+        else:
+            # Log first 500 chars for debugging
+            preview = response_text[:500] + "..." if len(response_text) > 500 else response_text
+            logger.debug(f"Tool response preview: {preview}")
+
+        logger.info(f"Tool response received (length: {len(response_text)})")
         return response_text
+
+    def _parse_tool_response(self, response_text: str, tool_name: str) -> Dict[str, Any]:
+        """Parse tool response with proper error handling"""
+        if not response_text:
+            raise ValueError(f"Tool {tool_name} returned empty response")
+
+        try:
+            data = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from {tool_name}: {e}")
+            logger.error(f"Response was: {response_text[:500]}")
+            raise ValueError(f"Invalid JSON response from {tool_name}: {e}")
+
+        # Check if response indicates an error
+        if data.get("status") == "error":
+            error_msg = data.get("error", "Unknown error")
+            raise RuntimeError(f"Tool {tool_name} failed: {error_msg}")
+
+        return data
 
     async def run_workflow(
         self,
@@ -153,7 +181,7 @@ class MCPOrderingClient:
                     "job_id": job_id
                 }
             )
-            extract_data = json.loads(extract_response)
+            extract_data = self._parse_tool_response(extract_response, "extract_manufacturer_data")
             workflow_result["steps"]["extract"] = extract_data
 
             if extract_data.get("status") != "success":
@@ -169,7 +197,7 @@ class MCPOrderingClient:
                 "get_guide_content",
                 {"guide_uri": guide_uri}
             )
-            guide_data = json.loads(guide_response)
+            guide_data = self._parse_tool_response(guide_response, "get_guide_content")
             workflow_result["steps"]["guide_review"] = {
                 "success": guide_data.get("status") == "success",
                 "length": guide_data.get("content_length", 0)
@@ -191,7 +219,7 @@ class MCPOrderingClient:
                     "job_id": job_id
                 }
             )
-            finalize_data = json.loads(finalize_response)
+            finalize_data = self._parse_tool_response(finalize_response, "finalize_order")
             workflow_result["steps"]["finalize"] = finalize_data
 
             if finalize_data.get("status") != "success":
@@ -206,7 +234,7 @@ class MCPOrderingClient:
                 "get_order_file",
                 {"job_id": job_id}
             )
-            download_data = json.loads(download_response)
+            download_data = self._parse_tool_response(download_response, "get_order_file")
             workflow_result["steps"]["download"] = download_data
 
             if download_data.get("status") == "success":
