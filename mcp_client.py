@@ -64,7 +64,7 @@ class MCPOrderingClient:
 
         # Initialize the connection
         result = await self.session.initialize()
-        logger.info(f"Connected to server: {result.server_info.name} v{result.server_info.version}")
+        logger.info(f"Connected to server: {result.serverInfo.name} v{result.serverInfo.version}")
 
     async def disconnect(self) -> None:
         """Disconnect from the MCP server"""
