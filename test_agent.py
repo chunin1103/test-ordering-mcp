@@ -70,7 +70,7 @@ class OrderingAgent:
                 response.raise_for_status()
                 data = response.json()
 
-            logger.info(f"✓ Extract successful: {data.get('guide_uri')}")
+            logger.info(f"[OK] Extract successful: {data.get('guide_uri')}")
 
             # Store in session
             self.session_data[job_id] = {
@@ -88,7 +88,7 @@ class OrderingAgent:
             }
 
         except Exception as e:
-            logger.error(f"✗ Extract failed: {str(e)}")
+            logger.error(f"[ERROR] Extract failed: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
@@ -98,15 +98,21 @@ class OrderingAgent:
         """
         Step 2: Fetch and review the guide content
         """
-        logger.info(f"[STEP 2] Fetching guide content from: {guide_uri}")
+        # Handle relative paths by prepending the base URL
+        if guide_uri.startswith('/'):
+            full_url = f"{self.tool1_url}{guide_uri}"
+        else:
+            full_url = guide_uri
+
+        logger.info(f"[STEP 2] Fetching guide content from: {full_url}")
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.get(guide_uri)
+                response = await client.get(full_url)
                 response.raise_for_status()
                 content = response.text
 
-            logger.info(f"✓ Guide fetched: {len(content)} characters")
+            logger.info(f"[OK] Guide fetched: {len(content)} characters")
 
             return {
                 "success": True,
@@ -115,7 +121,7 @@ class OrderingAgent:
             }
 
         except Exception as e:
-            logger.error(f"✗ Guide fetch failed: {str(e)}")
+            logger.error(f"[ERROR] Guide fetch failed: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
@@ -129,6 +135,12 @@ class OrderingAgent:
         """
         Step 3: Process guide and generate Excel order file
         """
+        # Handle relative paths by prepending the base URL
+        if guide_uri.startswith('/'):
+            full_guide_uri = f"{self.tool1_url}{guide_uri}"
+        else:
+            full_guide_uri = guide_uri
+
         logger.info(f"[STEP 3] Finalizing order for job: {job_id}")
 
         try:
@@ -136,14 +148,14 @@ class OrderingAgent:
                 response = await client.post(
                     f"{self.tool2_url}/finalize",
                     json={
-                        "guide_uri": guide_uri,
+                        "guide_uri": full_guide_uri,
                         "job_id": job_id
                     }
                 )
                 response.raise_for_status()
                 data = response.json()
 
-            logger.info(f"✓ Order finalized: {data.get('order_uri')}")
+            logger.info(f"[OK] Order finalized: {data.get('order_uri')}")
 
             # Update session
             if job_id in self.session_data:
@@ -161,7 +173,7 @@ class OrderingAgent:
             }
 
         except Exception as e:
-            logger.error(f"✗ Finalize failed: {str(e)}")
+            logger.error(f"[ERROR] Finalize failed: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
@@ -194,7 +206,7 @@ class OrderingAgent:
                     f.write(response.content)
 
             file_size = output_path.stat().st_size
-            logger.info(f"✓ File downloaded: {output_path} ({file_size} bytes)")
+            logger.info(f"[OK] File downloaded: {output_path} ({file_size} bytes)")
 
             # Update session
             if job_id in self.session_data:
@@ -211,7 +223,7 @@ class OrderingAgent:
             }
 
         except Exception as e:
-            logger.error(f"✗ Download failed: {str(e)}")
+            logger.error(f"[ERROR] Download failed: {str(e)}")
             return {
                 "success": False,
                 "error": str(e)
@@ -284,10 +296,10 @@ class OrderingAgent:
 
         logger.info("=" * 80)
         if workflow_result["success"]:
-            logger.info("✓ Workflow completed successfully!")
+            logger.info("[OK] Workflow completed successfully!")
             logger.info(f"Order file: {download_result['file_path']}")
         else:
-            logger.error("✗ Workflow completed with errors")
+            logger.error("[ERROR] Workflow completed with errors")
         logger.info("=" * 80)
 
         # Save workflow summary

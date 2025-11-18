@@ -9,7 +9,7 @@ import sys
 import json
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, Optional
 import httpx
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
@@ -151,7 +151,7 @@ async def handle_call_tool(
         )]
 
 
-async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Call Tool #1: Extract manufacturer data"""
     logger.info(f"Extracting data for manufacturer: {manufacturer_id}, job: {job_id}")
 
@@ -183,15 +183,21 @@ async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> Sequen
     )]
 
 
-async def finalize_order(guide_uri: str, job_id: str) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def finalize_order(guide_uri: str, job_id: str) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Call Tool #2: Finalize order and generate Excel"""
-    logger.info(f"Finalizing order for job: {job_id}, guide: {guide_uri}")
+    # Handle relative paths by prepending the base URL
+    if guide_uri.startswith('/'):
+        full_guide_uri = f"{TOOL1_BASE_URL}{guide_uri}"
+    else:
+        full_guide_uri = guide_uri
+
+    logger.info(f"Finalizing order for job: {job_id}, guide: {full_guide_uri}")
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         response = await client.post(
             f"{TOOL2_BASE_URL}/finalize",
             json={
-                "guide_uri": guide_uri,
+                "guide_uri": full_guide_uri,
                 "job_id": job_id
             }
         )
@@ -214,7 +220,7 @@ async def finalize_order(guide_uri: str, job_id: str) -> Sequence[types.TextCont
     )]
 
 
-async def get_order_file(job_id: str, output_path: Optional[str] = None) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def get_order_file(job_id: str, output_path: Optional[str] = None) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Download the Excel order file"""
     if output_path is None:
         output_path = f"./output/{job_id}.xlsx"
@@ -250,12 +256,18 @@ async def get_order_file(job_id: str, output_path: Optional[str] = None) -> Sequ
     )]
 
 
-async def get_guide_content(guide_uri: str) -> Sequence[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+async def get_guide_content(guide_uri: str) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     """Fetch and return guide content"""
-    logger.info(f"Fetching guide content from: {guide_uri}")
+    # Handle relative paths by prepending the base URL
+    if guide_uri.startswith('/'):
+        full_url = f"{TOOL1_BASE_URL}{guide_uri}"
+    else:
+        full_url = guide_uri
+
+    logger.info(f"Fetching guide content from: {full_url}")
 
     async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.get(guide_uri)
+        response = await client.get(full_url)
         response.raise_for_status()
         content = response.text
 
