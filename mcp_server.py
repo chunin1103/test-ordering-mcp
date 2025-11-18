@@ -170,8 +170,8 @@ async def extract_manufacturer_data(manufacturer_id: str, job_id: str) -> list[t
                 }
             )
 
-            # Check HTTP status
-            if response.status_code != 200:
+            # Check HTTP status - accept all 2xx success codes
+            if not response.is_success:
                 error_text = response.text[:500] if response.text else "No response body"
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}: {error_text}",
@@ -228,7 +228,8 @@ async def finalize_order(guide_uri: str, job_id: str) -> list[types.TextContent 
                 }
             )
 
-            if response.status_code != 200:
+            # Check HTTP status - accept all 2xx success codes
+            if not response.is_success:
                 error_text = response.text[:500] if response.text else "No response body"
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}: {error_text}",
@@ -279,7 +280,8 @@ async def get_order_file(job_id: str, output_path: Optional[str] = None) -> list
                 f"{TOOL2_BASE_URL}/orders/{job_id}"
             )
 
-            if response.status_code != 200:
+            # Check HTTP status - accept all 2xx success codes
+            if not response.is_success:
                 error_text = response.text[:500] if response.text else "No response body"
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}: {error_text}",
@@ -326,7 +328,8 @@ async def get_guide_content(guide_uri: str) -> list[types.TextContent | types.Im
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.get(full_url)
 
-            if response.status_code != 200:
+            # Check HTTP status - accept all 2xx success codes
+            if not response.is_success:
                 error_text = response.text[:500] if response.text else "No response body"
                 raise httpx.HTTPStatusError(
                     f"HTTP {response.status_code}: {error_text}",
