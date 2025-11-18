@@ -115,8 +115,10 @@ class MCPOrderingClient:
         # Extract text content from result
         response_text = ""
         for content in result.content:
-            if hasattr(content, 'text'):
-                response_text += content.text
+            # Use getattr to safely access text attribute (only TextContent has it)
+            text = getattr(content, 'text', None)
+            if text is not None:
+                response_text += text
 
         # Log response for debugging
         if not response_text:
